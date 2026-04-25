@@ -1,0 +1,630 @@
+---
+interface Props {
+  slug: string;
+  recipeTitle: string;
+}
+const { slug, recipeTitle } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+<section class="comments-section" data-slug={slug}>
+  <h2>💬 รีวิวจากผู้ทำสูตรนี้</h2>
+
+  <!-- ค่าเฉลี่ยและจำนวน -->
+  <div class="rating-summary" id="ratingSummary">
+    <div class="rating-avg">
+      <span class="rating-num" id="ratingNum">—</span>
+      <span class="rating-stars" id="ratingStars">☆☆☆☆☆</span>
+    </div>
+    <div class="rating-count" id="ratingCount">ยังไม่มีรีวิว</div>
+  </div>
+
+  <!-- ฟอร์มเขียนรีวิว -->
+  <div class="comment-form">
+    <h3>เขียนรีวิวของคุณ</h3>
+
+    <div class="form-row">
+      <label for="reviewName">ชื่อของคุณ</label>
+      <input type="text" id="reviewName" maxlength="40" placeholder="เช่น แม่บ้านมือใหม่" />
+    </div>
+
+    <div class="form-row">
+      <label>คะแนน <span class="req">*</span></label>
+      <div class="star-input" id="starInput" role="radiogroup" aria-label="ให้คะแนน 1-5 ดาว">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button type="button" class="star-btn" data-value={n} aria-label={`${n} ดาว`}>
+            ☆
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label for="reviewText">ความเห็น</label>
+      <textarea id="reviewText" rows="4" maxlength="500" placeholder={`คุณคิดอย่างไรกับ${recipeTitle}? ทำตามแล้วเป็นยังไง?`}></textarea>
+    </div>
+
+    <div class="form-row">
+      <label for="reviewImages">รูปอาหารของคุณ (ถ้ามี)</label>
+      <div class="image-upload">
+        <label for="reviewImages" class="upload-btn">📷 เลือกรูป (สูงสุด 4 รูป)</label>
+        <input type="file" id="reviewImages" accept="image/*" multiple hidden />
+        <div class="image-preview" id="imagePreview"></div>
+      </div>
+      <small class="hint">รูปจะถูกแปลงเป็น WebP อัตโนมัติเพื่อโหลดเร็ว · ขนาดสูงสุด 5MB ต่อรูป</small>
+    </div>
+
+    <button type="button" id="submitBtn" class="submit-btn">
+      <span id="submitLabel">ส่งรีวิว</span>
+    </button>
+
+    <div id="formMsg" class="form-msg" role="status"></div>
+  </div>
+
+  <!-- รายการ comment -->
+  <div class="comment-list" id="commentList">
+    <div class="loading">กำลังโหลดรีวิว...</div>
+  </div>
+
+  <!-- Demo notice (แสดงเฉพาะ localStorage mode) -->
+  <div id="demoNotice" class="demo-notice" hidden>
+    <strong>โหมดทดสอบ:</strong> รีวิวเก็บใน browser ของคุณเอง คนอื่นมองไม่เห็น
+    เพื่อใช้งานจริงตั้งค่า Firebase ตามคู่มือ <code>FIREBASE_SETUP.md</code>
+  </div>
+</section>
+
+<script src={`${base}comments-client.js`} is:inline></script>
+
+<script is:inline define:vars={{ slug, base }}>
+  // ===== State =====
+  let selectedRating = 0;
+  let pendingImages = []; // [{ dataURL, blob, file }]
+  let submitting = false;
+
+  // ===== Helpers =====
+  function $(id) { return document.getElementById(id); }
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+  function starsString(n) {
+    const full = '★'.repeat(Math.round(n));
+    const empty = '☆'.repeat(5 - Math.round(n));
+    return full + empty;
+  }
+  function formatDate(iso) {
+    if (!iso) return '';
+    const d = typeof iso === 'string' ? new Date(iso) : iso;
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('th-TH', {
+      year: 'numeric', month: 'short', day: 'numeric',
+    });
+  }
+
+  // ===== Star input =====
+  const starBtns = document.querySelectorAll('#starInput .star-btn');
+  function paintStars(value) {
+    starBtns.forEach((btn) => {
+      const v = parseInt(btn.dataset.value);
+      btn.textContent = v <= value ? '★' : '☆';
+      btn.classList.toggle('on', v <= value);
+    });
+  }
+  starBtns.forEach((btn) => {
+    btn.addEventListener('mouseenter', () =>
+      paintStars(parseInt(btn.dataset.value))
+    );
+    btn.addEventListener('mouseleave', () => paintStars(selectedRating));
+    btn.addEventListener('click', () => {
+      selectedRating = parseInt(btn.dataset.value);
+      paintStars(selectedRating);
+    });
+  });
+
+  // ===== Image upload =====
+  const fileInput = $('reviewImages');
+  const previewEl = $('imagePreview');
+
+  fileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // reset เพื่อเลือกซ้ำได้
+    for (const file of files) {
+      if (pendingImages.length >= 4) {
+        showMsg('อัพโหลดได้สูงสุด 4 รูป', 'error');
+        break;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showMsg(`${file.name} ใหญ่เกิน 5MB`, 'error');
+        continue;
+      }
+      try {
+        const result = await window.CommentsAPI.convertToWebP(file, {
+          maxWidth: 1200,
+          quality: 0.85,
+        });
+        pendingImages.push({
+          dataURL: result.dataURL,
+          blob: result.blob,
+          file,
+        });
+        renderPreview();
+      } catch (err) {
+        showMsg('แปลงรูปไม่สำเร็จ: ' + err.message, 'error');
+      }
+    }
+  });
+
+  function renderPreview() {
+    previewEl.innerHTML = pendingImages
+      .map(
+        (img, idx) => `
+      <div class="preview-item">
+        <img src="${img.dataURL}" alt="preview ${idx + 1}" />
+        <button type="button" class="preview-remove" data-idx="${idx}" aria-label="ลบรูป">×</button>
+      </div>
+    `
+      )
+      .join('');
+    previewEl.querySelectorAll('.preview-remove').forEach((b) => {
+      b.addEventListener('click', () => {
+        const idx = parseInt(b.dataset.idx);
+        pendingImages.splice(idx, 1);
+        renderPreview();
+      });
+    });
+  }
+
+  // ===== Submit =====
+  function showMsg(msg, type) {
+    const el = $('formMsg');
+    el.textContent = msg;
+    el.className = 'form-msg ' + (type || '');
+    if (type !== 'error') {
+      setTimeout(() => {
+        el.textContent = '';
+        el.className = 'form-msg';
+      }, 4000);
+    }
+  }
+
+  $('submitBtn').addEventListener('click', async () => {
+    if (submitting) return;
+    const name = $('reviewName').value.trim() || 'ผู้ใช้ไม่ระบุชื่อ';
+    const text = $('reviewText').value.trim();
+
+    if (selectedRating < 1) {
+      showMsg('กรุณาให้คะแนน 1-5 ดาว', 'error');
+      return;
+    }
+    if (text.length === 0 && pendingImages.length === 0) {
+      showMsg('กรุณาเขียนความเห็นหรือแนบรูป', 'error');
+      return;
+    }
+
+    submitting = true;
+    $('submitBtn').disabled = true;
+    $('submitLabel').textContent = 'กำลังส่ง...';
+
+    try {
+      // Upload รูปก่อน (ถ้ามี)
+      const imageURLs = [];
+      for (let i = 0; i < pendingImages.length; i++) {
+        $('submitLabel').textContent = `กำลังอัพรูป ${i + 1}/${pendingImages.length}...`;
+        const url = await window.CommentsAPI.uploadImage(pendingImages[i].file);
+        imageURLs.push(url);
+      }
+
+      $('submitLabel').textContent = 'กำลังบันทึก...';
+      const newComment = await window.CommentsAPI.addComment(slug, {
+        name,
+        rating: selectedRating,
+        text,
+        images: imageURLs,
+      });
+
+      // Reset form
+      $('reviewText').value = '';
+      $('reviewName').value = '';
+      pendingImages = [];
+      selectedRating = 0;
+      paintStars(0);
+      renderPreview();
+
+      showMsg('ขอบคุณสำหรับรีวิวค่ะ! 💖', 'success');
+      await loadComments();
+    } catch (err) {
+      console.error(err);
+      showMsg('ส่งรีวิวไม่สำเร็จ: ' + err.message, 'error');
+    } finally {
+      submitting = false;
+      $('submitBtn').disabled = false;
+      $('submitLabel').textContent = 'ส่งรีวิว';
+    }
+  });
+
+  // ===== Load + render comments =====
+  async function loadComments() {
+    const list = await window.CommentsAPI.getComments(slug);
+    const listEl = $('commentList');
+
+    // อัพเดทสรุปคะแนน
+    if (list.length === 0) {
+      $('ratingNum').textContent = '—';
+      $('ratingStars').textContent = '☆☆☆☆☆';
+      $('ratingCount').textContent = 'ยังเป็นคนแรกที่รีวิวสูตรนี้';
+      listEl.innerHTML = `<div class="empty-state">ยังไม่มีรีวิว เริ่มเขียนคนแรกได้เลย!</div>`;
+      return;
+    }
+    const avg = list.reduce((s, c) => s + (c.rating || 0), 0) / list.length;
+    $('ratingNum').textContent = avg.toFixed(1);
+    $('ratingStars').textContent = starsString(avg);
+    $('ratingCount').textContent = `จาก ${list.length} รีวิว`;
+
+    // วาด comments
+    listEl.innerHTML = list
+      .map((c) => {
+        const initials = (c.name || '?').slice(0, 1).toUpperCase();
+        const imagesHTML = (c.images || [])
+          .map(
+            (url) =>
+              `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="รูปจาก ${escapeHtml(c.name)}" loading="lazy" /></a>`
+          )
+          .join('');
+        const dateStr =
+          c.createdAt && c.createdAt.toDate
+            ? formatDate(c.createdAt.toDate())
+            : formatDate(c.createdAt);
+        return `
+        <article class="comment-item">
+          <div class="comment-head">
+            <div class="avatar">${escapeHtml(initials)}</div>
+            <div class="comment-meta">
+              <strong>${escapeHtml(c.name || 'ไม่ระบุ')}</strong>
+              <span class="comment-stars">${starsString(c.rating || 0)}</span>
+              <span class="comment-date">${dateStr}</span>
+            </div>
+          </div>
+          ${c.text ? `<p class="comment-text">${escapeHtml(c.text)}</p>` : ''}
+          ${imagesHTML ? `<div class="comment-images">${imagesHTML}</div>` : ''}
+        </article>
+      `;
+      })
+      .join('');
+  }
+
+  // ===== Init =====
+  function init() {
+    // Demo notice
+    if (window.CommentsAPI.isLocalMode()) {
+      $('demoNotice').hidden = false;
+    }
+    paintStars(0);
+    loadComments();
+  }
+
+  // รอ comments-client.js โหลดเสร็จ
+  if (window.CommentsAPI) {
+    init();
+  } else {
+    const check = setInterval(() => {
+      if (window.CommentsAPI) {
+        clearInterval(check);
+        init();
+      }
+    }, 50);
+  }
+</script>
+
+<style>
+  .comments-section {
+    background: white;
+    border-radius: var(--radius);
+    padding: 1.75rem;
+    box-shadow: var(--shadow-sm);
+    margin-top: 2rem;
+  }
+  .comments-section h2 {
+    margin: 0 0 1.25rem;
+    font-size: 1.5rem;
+  }
+
+  /* ===== Rating summary ===== */
+  .rating-summary {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .rating-avg {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .rating-num {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--color-primary-dark);
+    line-height: 1;
+  }
+  .rating-stars {
+    font-size: 1.4rem;
+    color: #f59e0b;
+    letter-spacing: 0.1em;
+  }
+  .rating-count {
+    color: var(--color-muted);
+    font-size: 0.95rem;
+  }
+
+  /* ===== Comment form ===== */
+  .comment-form {
+    background: #fafafa;
+    padding: 1.25rem;
+    border-radius: 12px;
+    margin-bottom: 1.75rem;
+  }
+  .comment-form h3 {
+    margin: 0 0 1rem;
+    font-size: 1.15rem;
+  }
+  .form-row {
+    margin-bottom: 1rem;
+  }
+  .form-row label {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    color: var(--color-text);
+  }
+  .req { color: #dc2626; }
+  .form-row input[type="text"],
+  .form-row textarea {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font-family: var(--font);
+    font-size: 0.95rem;
+    background: white;
+    color: var(--color-text);
+    resize: vertical;
+  }
+  .form-row input[type="text"]:focus,
+  .form-row textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+  }
+
+  /* ===== Star input ===== */
+  .star-input {
+    display: flex;
+    gap: 0.25rem;
+  }
+  .star-btn {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #d1d5db;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.1s, transform 0.1s;
+    font-family: var(--font);
+  }
+  .star-btn:hover { transform: scale(1.1); }
+  .star-btn.on { color: #f59e0b; }
+
+  /* ===== Image upload ===== */
+  .image-upload .upload-btn {
+    display: inline-block;
+    background: white;
+    border: 2px dashed var(--color-primary);
+    color: var(--color-primary-dark);
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.92rem;
+    margin-bottom: 0.5rem;
+    transition: background 0.15s;
+  }
+  .image-upload .upload-btn:hover {
+    background: #fff7ed;
+  }
+  .image-preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+  }
+  .preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f3f4f6;
+  }
+  .preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .preview-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .preview-remove:hover { background: rgba(0, 0, 0, 0.8); }
+  .hint {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+    display: block;
+    margin-top: 0.25rem;
+  }
+
+  /* ===== Submit ===== */
+  .submit-btn {
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.75rem;
+    border-radius: 999px;
+    font-family: var(--font);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
+  }
+  .submit-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(234, 88, 12, 0.35);
+  }
+  .submit-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  .form-msg {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    min-height: 1.5em;
+  }
+  .form-msg.error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  .form-msg.success {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  /* ===== Comment list ===== */
+  .comment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .empty-state, .loading {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--color-muted);
+    background: #fafafa;
+    border-radius: 12px;
+  }
+  .comment-item {
+    background: #fafafa;
+    padding: 1rem 1.1rem;
+    border-radius: 12px;
+  }
+  .comment-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: white;
+    font-weight: 700;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .comment-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  .comment-meta strong { color: var(--color-text); }
+  .comment-stars {
+    color: #f59e0b;
+    letter-spacing: 0.05em;
+  }
+  .comment-date {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+  }
+  .comment-text {
+    color: var(--color-text);
+    line-height: 1.6;
+    margin: 0.5rem 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .comment-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+  }
+  .comment-images img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: zoom-in;
+    transition: transform 0.15s;
+  }
+  .comment-images a:hover img {
+    transform: scale(1.02);
+  }
+
+  /* ===== Demo notice ===== */
+  .demo-notice {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin-top: 1.25rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+  .demo-notice code {
+    background: rgba(0, 0, 0, 0.08);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+  }
+
+  /* ===== Mobile ===== */
+  @media (max-width: 640px) {
+    .comments-section { padding: 1.25rem; }
+    .comments-section h2 { font-size: 1.25rem; }
+    .rating-summary { padding: 0.85rem 1rem; }
+    .rating-num { font-size: 1.6rem; }
+    .rating-stars { font-size: 1.15rem; }
+    .comment-form { padding: 1rem; }
+    .star-btn { font-size: 1.7rem; }
+    .submit-btn { width: 100%; }
+  }
+</style>

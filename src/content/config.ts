@@ -12,6 +12,7 @@ const recipes = defineCollection({
     totalTime: z.string(),       // เช่น "PT30M"
     servings: z.number(),
     category: z.string(),        // เช่น "อาหารจานเดียว", "ของหวาน"
+    meal: z.array(z.enum(['เช้า', 'กลางวัน', 'เย็น', 'ของว่าง'])).optional(),
     publishDate: z.date(),
     ingredients: z.array(z.object({
       name: z.string(),

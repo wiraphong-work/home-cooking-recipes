@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import AffiliateBox from '../../components/AffiliateBox.astro';
+import CommentSection from '../../components/CommentSection.astro';
 import { getCollection } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -131,5 +132,8 @@ const jsonLd = {
         )}
       </div>
     </div>
+
+    <!-- ส่วนรีวิว/Comment -->
+    <CommentSection slug={recipe.slug} recipeTitle={data.title} />
   </article>
 </BaseLayout>
