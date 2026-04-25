@@ -1,0 +1,51 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import RecipeCard from '../components/RecipeCard.astro';
+import { getCollection } from 'astro:content';
+
+// ดึงสูตรทั้งหมดมาเรียงตามวันที่ลง
+const allRecipes = await getCollection('recipes');
+const sortedRecipes = allRecipes.sort((a, b) =>
+  b.data.publishDate.valueOf() - a.data.publishDate.valueOf()
+);
+
+// แปลง ISO duration เป็นข้อความอ่านง่าย (PT15M => 15 นาที)
+function formatTime(isoDuration: string): string {
+  const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+  if (!match) return isoDuration;
+  const hours = parseInt(match[1] || '0');
+  const minutes = parseInt(match[2] || '0');
+  if (hours > 0 && minutes > 0) return `${hours} ชม. ${minutes} นาที`;
+  if (hours > 0) return `${hours} ชั่วโมง`;
+  return `${minutes} นาที`;
+}
+---
+<BaseLayout
+  title="ครัวบ้านๆ · สูตรอาหารไทยทำง่ายที่บ้าน"
+  description="รวมสูตรอาหารไทยทำง่าย พร้อมลิงก์ซื้อวัตถุดิบและอุปกรณ์ครัวในราคาย่อมเยา"
+>
+  <section class="hero">
+    <div class="container">
+      <h1>สูตรอาหารไทยทำง่าย 🍜</h1>
+      <p>รวมสูตรอาหารไทยยอดนิยม ทำตามได้ที่บ้าน พร้อมลิงก์ซื้อวัตถุดิบและอุปกรณ์ในราคาดีๆ</p>
+    </div>
+  </section>
+
+  <section class="section" id="recipes">
+    <div class="container">
+      <h2>สูตรแนะนำล่าสุด</h2>
+      <div class="grid">
+        {sortedRecipes.map((recipe) => (
+          <RecipeCard
+            href={`${import.meta.env.BASE_URL}recipes/${recipe.slug}/`}
+            title={recipe.data.title}
+            description={recipe.data.description}
+            image={recipe.data.image}
+            cookTime={formatTime(recipe.data.totalTime)}
+            servings={recipe.data.servings}
+          />
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

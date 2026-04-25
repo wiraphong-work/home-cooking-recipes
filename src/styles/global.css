@@ -1,0 +1,464 @@
+/* ========== Reset & Base ========== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --color-primary: #f97316;
+  --color-primary-dark: #ea580c;
+  --color-text: #1f2937;
+  --color-muted: #6b7280;
+  --color-bg: #fffaf5;
+  --color-card: #ffffff;
+  --color-border: #f3e8d8;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --radius: 14px;
+  --max-width: 1100px;
+  --font: "Prompt", "Noto Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.3;
+  font-weight: 700;
+  color: #111827;
+}
+
+h1 { font-size: 2.25rem; margin-bottom: 1rem; }
+h2 { font-size: 1.75rem; margin: 2rem 0 1rem; }
+h3 { font-size: 1.25rem; margin: 1.25rem 0 0.5rem; }
+
+p { margin-bottom: 1rem; }
+
+/* ========== Header ========== */
+.site-header {
+  background: white;
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.site-header .inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.logo {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+
+.logo:hover { text-decoration: none; }
+
+.nav {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav a {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+/* ========== Hero ========== */
+.hero {
+  text-align: center;
+  padding: 3.5rem 1.25rem 2.5rem;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+}
+
+.hero h1 {
+  font-size: 2.75rem;
+  color: var(--color-primary-dark);
+  margin-bottom: 0.75rem;
+}
+
+.hero p {
+  font-size: 1.1rem;
+  color: var(--color-muted);
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* ========== Recipe Grid ========== */
+.section {
+  padding: 2.5rem 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 1.5rem;
+}
+
+.card {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  text-decoration: none;
+}
+
+.card-image {
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #fee2c8;
+}
+
+.card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-body {
+  padding: 1rem 1.1rem 1.2rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-body h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  color: var(--color-text);
+}
+
+.card-body p {
+  color: var(--color-muted);
+  font-size: 0.92rem;
+  flex: 1;
+  margin-bottom: 0.5rem;
+}
+
+.meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  margin-top: auto;
+}
+
+/* ========== Recipe Detail ========== */
+.recipe-header {
+  padding: 2rem 0 1rem;
+}
+
+.recipe-hero-img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  margin: 1rem 0 1.5rem;
+}
+
+.recipe-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  padding: 1rem 1.25rem;
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.5rem;
+}
+
+.recipe-meta div {
+  display: flex;
+  flex-direction: column;
+}
+
+.recipe-meta span:first-child {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.recipe-meta span:last-child {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.content-wrap {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 900px) {
+  .content-wrap {
+    grid-template-columns: 1fr 320px;
+  }
+}
+
+.ingredients, .steps {
+  background: white;
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.5rem;
+}
+
+.ingredients ul {
+  list-style: none;
+  padding: 0;
+}
+
+.ingredients li {
+  padding: 0.6rem 0;
+  border-bottom: 1px dashed var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ingredients li:last-child { border-bottom: none; }
+
+.buy-link {
+  font-size: 0.82rem;
+  background: var(--color-primary);
+  color: white !important;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.buy-link:hover {
+  background: var(--color-primary-dark);
+  text-decoration: none;
+}
+
+.steps ol {
+  padding-left: 1.2rem;
+}
+
+.steps li {
+  padding: 0.6rem 0 0.6rem 0.4rem;
+  line-height: 1.75;
+}
+
+/* ========== Affiliate Box ========== */
+.affiliate-box {
+  background: white;
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--color-primary);
+  margin-bottom: 1.5rem;
+}
+
+.affiliate-box h4 {
+  margin: 0 0 0.5rem;
+  color: var(--color-primary-dark);
+}
+
+.affiliate-box p {
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  margin-bottom: 0.75rem;
+}
+
+.affiliate-box .tool {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+}
+
+.affiliate-box .tool:last-child { border-bottom: none; }
+
+.affiliate-box .tool img {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.affiliate-box .tool-info {
+  flex: 1;
+}
+
+.affiliate-box .tool-info strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.affiliate-box .tool-info a {
+  font-size: 0.85rem;
+}
+
+/* ========== Footer ========== */
+.site-footer {
+  background: #1f2937;
+  color: #d1d5db;
+  padding: 2rem 0;
+  margin-top: 3rem;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.site-footer a { color: #fbbf24; }
+
+.disclosure {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.9rem 1.25rem;
+  border-radius: 8px;
+  margin: 1.25rem 0;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+/* ========== Responsive ========== */
+
+/* Tablet (768px - 900px): grid 2 คอลัมน์ชัดเจน */
+@media (max-width: 900px) {
+  .container { padding: 0 1rem; }
+  .hero { padding: 2.5rem 1rem 2rem; }
+  .hero h1 { font-size: 2.25rem; }
+  h2 { font-size: 1.5rem; }
+  .recipe-hero-img { max-height: 320px; }
+}
+
+/* Mobile (640px และเล็กกว่า) */
+@media (max-width: 640px) {
+  .container { padding: 0 0.875rem; }
+
+  /* Header — ให้ stack เมื่อจำเป็น */
+  .site-header .inner {
+    padding: 0.75rem 0.875rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .logo { font-size: 1.2rem; }
+  .nav {
+    gap: 0.875rem;
+    font-size: 0.92rem;
+    flex-wrap: wrap;
+  }
+
+  /* Hero — กระชับขึ้น */
+  .hero {
+    padding: 2rem 0.875rem 1.5rem;
+  }
+  .hero h1 { font-size: 1.75rem; line-height: 1.25; }
+  .hero p { font-size: 0.98rem; }
+
+  /* Headings ทั่วไป */
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.35rem; margin: 1.5rem 0 0.875rem; }
+  h3 { font-size: 1.1rem; }
+
+  /* Section padding */
+  .section { padding: 1.75rem 0; }
+
+  /* Grid — gap ลดลง */
+  .grid { gap: 1rem; }
+
+  /* Recipe meta — ใช้ grid 2 คอลัมน์เพื่อไม่ให้แน่น */
+  .recipe-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.875rem 1rem;
+    padding: 0.875rem 1rem;
+  }
+  .recipe-meta span:last-child { font-size: 0.95rem; }
+
+  /* Recipe hero image */
+  .recipe-hero-img { max-height: 240px; margin: 0.75rem 0 1.25rem; }
+
+  /* Ingredients — buy link ลงบรรทัดใหม่ดูดีกว่า */
+  .ingredients, .steps { padding: 1.1rem; }
+  .ingredients li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+  .buy-link { font-size: 0.78rem; padding: 0.2rem 0.6rem; }
+
+  /* Affiliate box — ปรับ padding */
+  .affiliate-box { padding: 1rem; }
+  .affiliate-box .tool img {
+    width: 48px;
+    height: 48px;
+  }
+  .affiliate-box .tool { padding: 0.5rem 0; gap: 0.6rem; }
+  .affiliate-box .tool-info strong { font-size: 0.9rem; line-height: 1.4; }
+
+  /* Card body — กระชับ */
+  .card-body { padding: 0.875rem 1rem 1rem; }
+  .card-body h3 { font-size: 1.05rem; }
+  .meta { font-size: 0.8rem; gap: 0.75rem; }
+}
+
+/* Mobile เล็กพิเศษ (380px และเล็กกว่า) — Galaxy Fold, iPhone SE 1st gen */
+@media (max-width: 380px) {
+  .nav { gap: 0.6rem; font-size: 0.85rem; }
+  .logo { font-size: 1.1rem; }
+  .hero h1 { font-size: 1.5rem; }
+  .recipe-meta { grid-template-columns: 1fr 1fr; gap: 0.6rem 0.75rem; }
+}
+
+/* Print styles — สำหรับคนอยากปริ้นสูตร */
+@media print {
+  .site-header, .site-footer, .affiliate-box, .buy-link, .disclosure {
+    display: none !important;
+  }
+  body { background: white; color: black; }
+  .container { max-width: 100%; padding: 0; }
+  a { color: black; text-decoration: none; }
+}

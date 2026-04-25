@@ -1,0 +1,25 @@
+---
+interface Props {
+  href: string;
+  title: string;
+  description: string;
+  image: string;
+  cookTime?: string;
+  servings?: number;
+}
+
+const { href, title, description, image, cookTime, servings } = Astro.props;
+---
+<a href={href} class="card">
+  <div class="card-image">
+    <img src={image} alt={title} loading="lazy" />
+  </div>
+  <div class="card-body">
+    <h3>{title}</h3>
+    <p>{description}</p>
+    <div class="meta">
+      {cookTime && <span>⏱️ {cookTime}</span>}
+      {servings && <span>🍽️ {servings} ที่</span>}
+    </div>
+  </div>
+</a>

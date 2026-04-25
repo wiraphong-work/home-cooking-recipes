@@ -1,0 +1,135 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AffiliateBox from '../../components/AffiliateBox.astro';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const recipes = await getCollection('recipes');
+  return recipes.map((recipe) => ({
+    params: { slug: recipe.slug },
+    props: { recipe },
+  }));
+}
+
+const { recipe } = Astro.props;
+const { Content } = await recipe.render();
+const data = recipe.data;
+
+// แปลง ISO duration (PT15M) → "15 นาที"
+function formatTime(isoDuration: string): string {
+  const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+  if (!match) return isoDuration;
+  const hours = parseInt(match[1] || '0');
+  const minutes = parseInt(match[2] || '0');
+  if (hours > 0 && minutes > 0) return `${hours} ชม. ${minutes} นาที`;
+  if (hours > 0) return `${hours} ชั่วโมง`;
+  return `${minutes} นาที`;
+}
+
+// JSON-LD สำหรับ Google Recipe Schema
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Recipe",
+  "name": data.title,
+  "description": data.description,
+  "image": [data.image],
+  "datePublished": data.publishDate.toISOString(),
+  "recipeCategory": data.category,
+  "recipeCuisine": "ไทย",
+  "prepTime": data.prepTime,
+  "cookTime": data.cookTime,
+  "totalTime": data.totalTime,
+  "recipeYield": `${data.servings} ที่`,
+  "recipeIngredient": data.ingredients.map((i) => `${i.amount} ${i.name}`),
+  "recipeInstructions": data.steps.map((step, i) => ({
+    "@type": "HowToStep",
+    "position": i + 1,
+    "text": step,
+  })),
+};
+---
+<BaseLayout
+  title={`${data.title} · ครัวบ้านๆ`}
+  description={data.description}
+  image={data.image}
+  jsonLd={jsonLd}
+>
+  <article class="container recipe-header">
+    <h1>{data.title}</h1>
+    <p style="font-size: 1.1rem; color: #6b7280;">{data.description}</p>
+    <img src={data.image} alt={data.title} class="recipe-hero-img" />
+
+    <div class="recipe-meta">
+      <div>
+        <span>เวลาเตรียม</span>
+        <span>{formatTime(data.prepTime)}</span>
+      </div>
+      <div>
+        <span>เวลาทำ</span>
+        <span>{formatTime(data.cookTime)}</span>
+      </div>
+      <div>
+        <span>รวมเวลา</span>
+        <span>{formatTime(data.totalTime)}</span>
+      </div>
+      <div>
+        <span>จำนวน</span>
+        <span>{data.servings} ที่</span>
+      </div>
+      <div>
+        <span>หมวดหมู่</span>
+        <span>{data.category}</span>
+      </div>
+    </div>
+
+    <div class="disclosure">
+      <strong>Affiliate Disclosure:</strong> บทความนี้มีลิงก์ affiliate
+      เมื่อคุณกดลิงก์และสั่งซื้อสินค้า เราอาจได้รับค่าคอมมิชชั่นเล็กน้อย
+      โดยที่คุณไม่ต้องเสียค่าใช้จ่ายเพิ่ม
+    </div>
+
+    <div class="content-wrap">
+      <div>
+        <Content />
+
+        <section class="ingredients">
+          <h2>วัตถุดิบ</h2>
+          <ul>
+            {data.ingredients.map((ing) => (
+              <li>
+                <span>
+                  <strong>{ing.name}</strong> — {ing.amount}
+                </span>
+                {ing.buyUrl && ing.buyUrl !== "" && (
+                  <a href={ing.buyUrl} target="_blank" rel="nofollow sponsored noopener" class="buy-link">
+                    ซื้อออนไลน์
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="steps">
+          <h2>ขั้นตอนการทำ</h2>
+          <ol>
+            {data.steps.map((step) => <li>{step}</li>)}
+          </ol>
+        </section>
+
+        {data.tips && (
+          <section class="steps">
+            <h2>💡 เคล็ดลับ</h2>
+            <p>{data.tips}</p>
+          </section>
+        )}
+      </div>
+
+      <div>
+        {data.tools && data.tools.length > 0 && (
+          <AffiliateBox tools={data.tools} />
+        )}
+      </div>
+    </div>
+  </article>
+</BaseLayout>

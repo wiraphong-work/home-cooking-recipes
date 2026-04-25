@@ -1,0 +1,14 @@
+---
+// Header navigation
+const base = import.meta.env.BASE_URL;
+---
+<header class="site-header">
+  <div class="inner">
+    <a href={base} class="logo">ครัวบ้านๆ 🍜</a>
+    <nav class="nav">
+      <a href={base}>หน้าแรก</a>
+      <a href={`${base}#recipes`}>สูตรอาหาร</a>
+      <a href={`${base}about/`}>เกี่ยวกับเรา</a>
+    </nav>
+  </div>
+</header>

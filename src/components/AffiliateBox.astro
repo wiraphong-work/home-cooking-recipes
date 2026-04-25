@@ -1,0 +1,34 @@
+---
+interface Tool {
+  name: string;
+  image: string;
+  url: string;
+  note?: string;
+}
+
+interface Props {
+  title?: string;
+  description?: string;
+  tools: Tool[];
+}
+
+const {
+  title = '🛒 อุปกรณ์ที่ใช้ในสูตรนี้',
+  description = 'คลิกลิงก์ด้านล่างเพื่อดูสินค้าบน Shopee/Lazada',
+  tools,
+} = Astro.props;
+---
+<aside class="affiliate-box">
+  <h4>{title}</h4>
+  <p>{description}</p>
+  {tools.map((tool) => (
+    <div class="tool">
+      <img src={tool.image} alt={tool.name} loading="lazy" />
+      <div class="tool-info">
+        <strong>{tool.name}</strong>
+        {tool.note && <span style="font-size: 0.82rem; color: #6b7280;">{tool.note}</span>}
+        <div><a href={tool.url} target="_blank" rel="nofollow sponsored noopener">ดูราคา →</a></div>
+      </div>
+    </div>
+  ))}
+</aside>
