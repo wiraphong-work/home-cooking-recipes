@@ -2,6 +2,10 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import AffiliateBox from '../../components/AffiliateBox.astro';
 import CommentSection from '../../components/CommentSection.astro';
+import AddToShoppingList from '../../components/AddToShoppingList.astro';
+import FavoriteButton from '../../components/FavoriteButton.astro';
+import RelatedRecipes from '../../components/RelatedRecipes.astro';
+import NutritionFacts from '../../components/NutritionFacts.astro';
 import { getCollection } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -15,8 +19,8 @@ export async function getStaticPaths() {
 const { recipe } = Astro.props;
 const { Content } = await recipe.render();
 const data = recipe.data;
+const base = import.meta.env.BASE_URL;
 
-// แปลง ISO duration (PT15M) → "15 นาที"
 function formatTime(isoDuration: string): string {
   const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
   if (!match) return isoDuration;
@@ -27,7 +31,6 @@ function formatTime(isoDuration: string): string {
   return `${minutes} นาที`;
 }
 
-// JSON-LD สำหรับ Google Recipe Schema
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "Recipe",
@@ -58,30 +61,22 @@ const jsonLd = {
   <article class="container recipe-header">
     <h1>{data.title}</h1>
     <p style="font-size: 1.1rem; color: #6b7280;">{data.description}</p>
-    <img src={data.image} alt={data.title} class="recipe-hero-img" />
+    <img src={data.image} alt={data.title} class="recipe-hero-img" data-recipe-slug={recipe.slug} />
 
     <div class="recipe-meta">
-      <div>
-        <span>เวลาเตรียม</span>
-        <span>{formatTime(data.prepTime)}</span>
-      </div>
-      <div>
-        <span>เวลาทำ</span>
-        <span>{formatTime(data.cookTime)}</span>
-      </div>
-      <div>
-        <span>รวมเวลา</span>
-        <span>{formatTime(data.totalTime)}</span>
-      </div>
-      <div>
-        <span>จำนวน</span>
-        <span>{data.servings} ที่</span>
-      </div>
-      <div>
-        <span>หมวดหมู่</span>
-        <span>{data.category}</span>
-      </div>
+      <div><span>เวลาเตรียม</span><span>{formatTime(data.prepTime)}</span></div>
+      <div><span>เวลาทำ</span><span>{formatTime(data.cookTime)}</span></div>
+      <div><span>รวมเวลา</span><span>{formatTime(data.totalTime)}</span></div>
+      <div><span>จำนวน</span><span>{data.servings} ที่</span></div>
+      <div><span>หมวดหมู่</span><span>{data.category}</span></div>
     </div>
+
+    <div class="recipe-actions">
+      <AddToShoppingList recipe={recipe} />
+      <FavoriteButton recipe={recipe} />
+    </div>
+
+    <NutritionFacts recipe={recipe} />
 
     <div class="disclosure">
       <strong>Affiliate Disclosure:</strong> บทความนี้มีลิงก์ affiliate
@@ -94,12 +89,21 @@ const jsonLd = {
         <Content />
 
         <section class="ingredients">
-          <h2>วัตถุดิบ</h2>
+          <div class="ing-head">
+            <h2>วัตถุดิบ</h2>
+            <!-- Serving calculator -->
+            <div class="serving-calc" id="servingCalc" data-base-servings={data.servings}>
+              <span class="calc-label">สำหรับ:</span>
+              {[1, 2, 4, 6, 8].map((n) => (
+                <button type="button" class="serving-btn" data-serving={n}>{n} ที่</button>
+              ))}
+            </div>
+          </div>
           <ul>
             {data.ingredients.map((ing) => (
               <li>
                 <span>
-                  <strong>{ing.name}</strong> — {ing.amount}
+                  <strong>{ing.name}</strong> — <span data-original-amount={ing.amount}>{ing.amount}</span>
                 </span>
                 {ing.buyUrl && ing.buyUrl !== "" && (
                   <a href={ing.buyUrl} target="_blank" rel="nofollow sponsored noopener" class="buy-link">
@@ -114,7 +118,9 @@ const jsonLd = {
         <section class="steps">
           <h2>ขั้นตอนการทำ</h2>
           <ol>
-            {data.steps.map((step) => <li>{step}</li>)}
+            {data.steps.map((step) => (
+              <li data-step-text={step}>{step}</li>
+            ))}
           </ol>
         </section>
 
@@ -133,7 +139,107 @@ const jsonLd = {
       </div>
     </div>
 
-    <!-- ส่วนรีวิว/Comment -->
+    <!-- Related recipes -->
+    <RelatedRecipes current={recipe} />
+
+    <!-- Comments -->
     <CommentSection slug={recipe.slug} recipeTitle={data.title} />
   </article>
+
+  <script src={`${base}recipe-tools.js`} is:inline></script>
 </BaseLayout>
+
+<style>
+  .recipe-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1rem 0 1.5rem;
+    align-items: center;
+  }
+  .recipe-actions :global(.add-to-list-wrap) { margin: 0; }
+
+  .ing-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+  }
+  .ing-head h2 { margin: 0; }
+
+  .serving-calc {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+  }
+  .calc-label {
+    font-size: 0.88rem;
+    color: var(--color-muted);
+    margin-right: 0.25rem;
+  }
+  .serving-btn {
+    background: white;
+    border: 1.5px solid var(--color-border);
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    font-family: var(--font);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--color-text);
+  }
+  .serving-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary-dark);
+  }
+  .serving-btn.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+
+  /* Cooking timer button (added by JS) */
+  :global(.timer-btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: 0.5rem;
+    margin-top: 0.4rem;
+    background: white;
+    border: 1.5px solid var(--color-primary);
+    color: var(--color-primary-dark);
+    padding: 0.3rem 0.85rem;
+    border-radius: 999px;
+    font-family: var(--font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  :global(.timer-btn:hover) {
+    background: #fff7ed;
+    transform: translateY(-1px);
+  }
+  :global(.timer-btn.running) {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: white;
+    border-color: var(--color-primary);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  :global(.timer-btn.done) {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+  }
+  :global(.timer-display) {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.5); }
+    50% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
+  }
+</style>

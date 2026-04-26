@@ -1,0 +1,399 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const base = import.meta.env.BASE_URL;
+const all = await getCollection('recipes');
+
+const recipeData = all
+  .sort((a, b) => a.slug.localeCompare(b.slug))
+  .map((r) => ({
+    slug: r.slug,
+    title: r.data.title,
+    image: r.data.image,
+    category: r.data.category,
+  }));
+---
+<BaseLayout
+  title="Admin · ตรวจรูปทุกใบ"
+  description="หน้าตรวจสอบรูปภาพในเว็บ — ดูว่าใบไหนรูปไม่ตรงกับเมนู"
+>
+  <section class="admin-hero">
+    <div class="container">
+      <h1>🛠️ Admin · ตรวจรูปอาหาร</h1>
+      <p>เลื่อนดูทุกใบ ถ้าใบไหนรูปไม่ตรงกับชื่อเมนู → กด <strong>"แทนด้วย SVG"</strong> เพื่อให้แสดง emoji แทน</p>
+      <div class="admin-stats">
+        <span>ทั้งหมด <strong id="totalCount">{recipeData.length}</strong></span>
+        <span>โหลดสำเร็จ <strong id="okCount" class="ok">0</strong></span>
+        <span>ใช้ SVG fallback <strong id="errCount" class="err">0</strong></span>
+        <span>Override <strong id="ovCount" class="ov">0</strong></span>
+      </div>
+
+      <div class="admin-actions">
+        <input type="search" id="filterInput" placeholder="กรอง: พิมพ์ชื่อเมนู..." />
+        <label class="filter-toggle">
+          <input type="checkbox" id="onlyBroken" />
+          แสดงเฉพาะที่ใช้ SVG
+        </label>
+        <button id="copyOverrides" class="copy-btn">📋 คัดลอก override list</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="admin-grid" id="adminGrid">
+        {recipeData.map((r) => (
+          <article class="admin-card" data-slug={r.slug} data-title={r.title.toLowerCase()}>
+            <div class="ac-img-wrap">
+              <img
+                src={r.image}
+                alt={r.title}
+                data-recipe-slug={r.slug}
+                loading="lazy"
+              />
+              <span class="ac-status loading">รอ...</span>
+            </div>
+            <div class="ac-body">
+              <strong>{r.title}</strong>
+              <span class="ac-cat">{r.category}</span>
+              <code class="ac-slug">{r.slug}</code>
+              <div class="ac-actions">
+                <button class="btn-svg" data-slug={r.slug}>SVG fallback</button>
+                <button class="btn-restore" data-slug={r.slug} data-original={r.image}>คืนค่าเดิม</button>
+              </div>
+              <div class="ac-url" data-original-url={r.image}></div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal: copy override list -->
+  <div id="ovModal" class="ov-modal" hidden>
+    <div class="ov-modal-inner">
+      <h2>📋 Override list</h2>
+      <p>ก๊อปข้อความนี้ไปวางในไฟล์ <code>public/image-overrides.js</code></p>
+      <textarea id="ovOutput" rows="12" readonly></textarea>
+      <div class="ov-modal-actions">
+        <button id="ovCopy">คัดลอก</button>
+        <button id="ovClose">ปิด</button>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    // ใช้ localStorage เก็บ override ที่ user เลือกในหน้า admin
+    const STORAGE_KEY = 'admin_overrides';
+    function loadOverrides() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+      catch { return {}; }
+    }
+    function saveOverrides(o) { localStorage.setItem(STORAGE_KEY, JSON.stringify(o)); }
+    let userOverrides = loadOverrides();
+
+    function refreshStats() {
+      const cards = document.querySelectorAll('.admin-card');
+      let ok = 0, err = 0, ov = 0;
+      cards.forEach((c) => {
+        const status = c.querySelector('.ac-status');
+        if (status.classList.contains('ok')) ok++;
+        else if (status.classList.contains('err')) err++;
+        if (c.classList.contains('overridden')) ov++;
+      });
+      document.getElementById('okCount').textContent = ok;
+      document.getElementById('errCount').textContent = err;
+      document.getElementById('ovCount').textContent = ov;
+    }
+
+    // ตรวจสถานะรูป
+    document.querySelectorAll('.admin-card').forEach((card) => {
+      const img = card.querySelector('img');
+      const status = card.querySelector('.ac-status');
+      const slug = card.dataset.slug;
+
+      if (userOverrides[slug] !== undefined) {
+        card.classList.add('overridden');
+      }
+
+      function setStatus(state, label) {
+        status.classList.remove('loading', 'ok', 'err');
+        status.classList.add(state);
+        status.textContent = label;
+        refreshStats();
+      }
+
+      if (img.complete) {
+        if (img.naturalWidth === 0) setStatus('err', 'โหลดไม่ได้ → SVG');
+        else setStatus('ok', 'โหลดสำเร็จ');
+      } else {
+        img.addEventListener('load', () => setStatus('ok', 'โหลดสำเร็จ'));
+        img.addEventListener('error', () => setStatus('err', 'โหลดไม่ได้ → SVG'));
+      }
+    });
+
+    // ปุ่ม "SVG fallback"
+    document.querySelectorAll('.btn-svg').forEach((b) => {
+      b.addEventListener('click', () => {
+        const slug = b.dataset.slug;
+        userOverrides[slug] = '';  // empty = ใช้ SVG
+        saveOverrides(userOverrides);
+        const card = document.querySelector(`.admin-card[data-slug="${slug}"]`);
+        const img = card.querySelector('img');
+        // trigger fallback
+        const evt = new Event('error');
+        img.dispatchEvent(evt);
+        card.classList.add('overridden');
+        refreshStats();
+      });
+    });
+
+    // ปุ่ม "คืนค่าเดิม"
+    document.querySelectorAll('.btn-restore').forEach((b) => {
+      b.addEventListener('click', () => {
+        const slug = b.dataset.slug;
+        const original = b.dataset.original;
+        delete userOverrides[slug];
+        saveOverrides(userOverrides);
+        const card = document.querySelector(`.admin-card[data-slug="${slug}"]`);
+        const img = card.querySelector('img');
+        img.dataset.fallbackApplied = '';
+        img.removeAttribute('data-fallback-applied');
+        img.src = original;
+        card.classList.remove('overridden');
+        refreshStats();
+      });
+    });
+
+    // Filter
+    const filterInput = document.getElementById('filterInput');
+    const onlyBroken = document.getElementById('onlyBroken');
+    function applyFilter() {
+      const q = filterInput.value.toLowerCase().trim();
+      const broken = onlyBroken.checked;
+      document.querySelectorAll('.admin-card').forEach((c) => {
+        const matchText = !q || c.dataset.title.includes(q) || c.dataset.slug.includes(q);
+        const isBroken = c.querySelector('.ac-status').classList.contains('err') || c.classList.contains('overridden');
+        const visible = matchText && (!broken || isBroken);
+        c.style.display = visible ? '' : 'none';
+      });
+    }
+    filterInput.addEventListener('input', applyFilter);
+    onlyBroken.addEventListener('change', applyFilter);
+
+    // Copy overrides modal
+    document.getElementById('copyOverrides').addEventListener('click', () => {
+      const lines = Object.entries(userOverrides).map(
+        ([slug, url]) => `  '${slug}': '${url}',`
+      );
+      const code = `window.RECIPE_IMAGE_OVERRIDES = {\n${lines.join('\n')}\n};\n`;
+      document.getElementById('ovOutput').value = code;
+      document.getElementById('ovModal').hidden = false;
+    });
+    document.getElementById('ovClose').addEventListener('click', () => {
+      document.getElementById('ovModal').hidden = true;
+    });
+    document.getElementById('ovCopy').addEventListener('click', () => {
+      const ta = document.getElementById('ovOutput');
+      ta.select();
+      document.execCommand('copy');
+      document.getElementById('ovCopy').textContent = '✓ คัดลอกแล้ว';
+      setTimeout(() => { document.getElementById('ovCopy').textContent = 'คัดลอก'; }, 2000);
+    });
+  </script>
+
+  <style>
+    .admin-hero {
+      background: #1f2937;
+      color: white;
+      padding: 2rem 1.25rem;
+    }
+    .admin-hero h1 { color: white; margin: 0 0 0.5rem; font-size: 1.6rem; }
+    .admin-hero p { color: #d1d5db; margin: 0 0 1rem; font-size: 0.92rem; }
+    .admin-stats {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .admin-stats span { color: #d1d5db; font-size: 0.92rem; }
+    .admin-stats strong { color: white; font-size: 1.05rem; }
+    .admin-stats .ok { color: #10b981; }
+    .admin-stats .err { color: #f87171; }
+    .admin-stats .ov { color: #fbbf24; }
+
+    .admin-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .admin-actions input[type="search"] {
+      flex: 1;
+      min-width: 200px;
+      padding: 0.5rem 0.85rem;
+      border-radius: 6px;
+      border: 1px solid #4b5563;
+      background: #111827;
+      color: white;
+      font-family: var(--font);
+    }
+    .filter-toggle {
+      color: #d1d5db;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .copy-btn {
+      background: #fbbf24;
+      color: #78350f;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: var(--font);
+    }
+
+    .admin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+      gap: 1rem;
+    }
+    .admin-card {
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      border: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+    .admin-card.overridden {
+      border-color: #fbbf24;
+    }
+    .ac-img-wrap {
+      position: relative;
+      aspect-ratio: 16/10;
+      background: #fee2c8;
+      overflow: hidden;
+    }
+    .ac-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .ac-status {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: white;
+    }
+    .ac-status.loading { background: #6b7280; }
+    .ac-status.ok { background: #10b981; }
+    .ac-status.err { background: #ef4444; }
+
+    .ac-body {
+      padding: 0.85rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .ac-body strong {
+      font-size: 0.95rem;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .ac-cat {
+      display: inline-block;
+      align-self: flex-start;
+      background: #fff7ed;
+      color: var(--color-primary-dark);
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+    }
+    .ac-slug {
+      background: #f3f4f6;
+      color: #4b5563;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      align-self: flex-start;
+    }
+    .ac-actions {
+      display: flex;
+      gap: 0.4rem;
+      margin-top: 0.4rem;
+    }
+    .ac-actions button {
+      flex: 1;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 0.78rem;
+    }
+    .btn-svg:hover { background: #fbbf24; color: #78350f; border-color: #fbbf24; }
+    .btn-restore:hover { background: #10b981; color: white; border-color: #10b981; }
+
+    /* Modal */
+    .ov-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .ov-modal[hidden] { display: none; }
+    .ov-modal-inner {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .ov-modal-inner h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
+    .ov-modal-inner code { background: #f3f4f6; padding: 0.1rem 0.4rem; border-radius: 4px; }
+    .ov-modal-inner textarea {
+      width: 100%;
+      font-family: monospace;
+      font-size: 0.85rem;
+      padding: 0.75rem;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      background: #f9fafb;
+      margin: 0.75rem 0;
+    }
+    .ov-modal-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+    .ov-modal-actions button {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      font-weight: 600;
+      font-family: var(--font);
+    }
+    #ovCopy { background: #10b981; color: white; border-color: #10b981; }
+  </style>
+</BaseLayout>

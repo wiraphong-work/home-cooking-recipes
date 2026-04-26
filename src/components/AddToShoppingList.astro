@@ -1,0 +1,117 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  recipe: CollectionEntry<'recipes'>;
+}
+
+const { recipe } = Astro.props;
+const data = recipe.data;
+
+// ส่งข้อมูลแบบ minimal ไป client
+const recipeForList = {
+  slug: recipe.slug,
+  title: data.title,
+  image: data.image,
+  ingredients: data.ingredients.map((i) => ({
+    name: i.name,
+    amount: i.amount,
+    buyUrl: i.buyUrl || '',
+  })),
+};
+---
+<div class="add-to-list-wrap">
+  <button type="button" class="add-list-btn" data-recipe={JSON.stringify(recipeForList)}>
+    <span class="btn-icon">🛒</span>
+    <span class="btn-label">เพิ่มลงรายการซื้อ</span>
+  </button>
+</div>
+
+<script src={`${import.meta.env.BASE_URL}shopping-list.js`} is:inline></script>
+<script is:inline>
+  function syncAddBtns() {
+    document.querySelectorAll('.add-list-btn').forEach((btn) => {
+      try {
+        const data = JSON.parse(btn.dataset.recipe);
+        const inList = window.ShoppingList && window.ShoppingList.has(data.slug);
+        const label = btn.querySelector('.btn-label');
+        const icon = btn.querySelector('.btn-icon');
+        if (inList) {
+          btn.classList.add('added');
+          label.textContent = 'อยู่ในรายการแล้ว · ลบออก';
+          icon.textContent = '✓';
+        } else {
+          btn.classList.remove('added');
+          label.textContent = 'เพิ่มลงรายการซื้อ';
+          icon.textContent = '🛒';
+        }
+      } catch {}
+    });
+  }
+
+  function bindAddBtns() {
+    document.querySelectorAll('.add-list-btn').forEach((btn) => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => {
+        try {
+          const data = JSON.parse(btn.dataset.recipe);
+          if (window.ShoppingList.has(data.slug)) {
+            window.ShoppingList.remove(data.slug);
+          } else {
+            window.ShoppingList.add(data);
+          }
+          syncAddBtns();
+        } catch (e) {
+          console.error(e);
+        }
+      });
+    });
+  }
+
+  if (window.ShoppingList) {
+    bindAddBtns();
+    syncAddBtns();
+  } else {
+    const wait = setInterval(() => {
+      if (window.ShoppingList) {
+        clearInterval(wait);
+        bindAddBtns();
+        syncAddBtns();
+      }
+    }, 50);
+  }
+
+  window.addEventListener('shopping-list-changed', syncAddBtns);
+</script>
+
+<style>
+  .add-to-list-wrap {
+    margin: 1rem 0 1.5rem;
+  }
+  .add-list-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    color: white;
+    border: none;
+    padding: 0.85rem 1.5rem;
+    border-radius: 999px;
+    font-family: var(--font);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.25);
+  }
+  .add-list-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);
+  }
+  .add-list-btn.added {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+  }
+  .btn-icon { font-size: 1.15rem; }
+</style>

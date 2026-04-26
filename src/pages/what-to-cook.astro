@@ -1,0 +1,358 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const base = import.meta.env.BASE_URL;
+const all = await getCollection('recipes');
+
+// Index แต่ละสูตรพร้อม keyword วัตถุดิบ
+const recipeIndex = all.map((r) => ({
+  slug: r.slug,
+  title: r.data.title,
+  description: r.data.description,
+  image: r.data.image,
+  totalTime: r.data.totalTime,
+  servings: r.data.servings,
+  category: r.data.category,
+  // join ชื่อวัตถุดิบเป็น string lowercase
+  ingredientsText: r.data.ingredients.map((i) => i.name).join(' ').toLowerCase(),
+  ingredientCount: r.data.ingredients.length,
+}));
+
+// วัตถุดิบยอดฮิต (จัดกลุ่ม) — keyword เพื่อ match กับ ingredientsText
+const COMMON_INGREDIENTS = [
+  // เนื้อสัตว์
+  { group: 'เนื้อสัตว์', items: [
+    { label: 'หมูสับ', match: ['หมูสับ'] },
+    { label: 'หมูชิ้น', match: ['หมูสันใน', 'หมูสันคอ', 'หมูสามชั้น', 'เนื้อหมู'] },
+    { label: 'ไก่', match: ['ไก่'] },
+    { label: 'เนื้อวัว', match: ['เนื้อวัว', 'เนื้อสัน', 'เนื้อน่อง'] },
+    { label: 'กุ้ง', match: ['กุ้ง'] },
+    { label: 'ปลาหมึก', match: ['ปลาหมึก'] },
+    { label: 'ปลา', match: ['ปลา'] },
+    { label: 'ไข่', match: ['ไข่ไก่', 'ไข่เป็ด', 'ไข่'] },
+  ]},
+  // ผัก
+  { group: 'ผัก', items: [
+    { label: 'กะเพรา', match: ['กะเพรา'] },
+    { label: 'โหระพา', match: ['โหระพา'] },
+    { label: 'ใบมะกรูด', match: ['ใบมะกรูด'] },
+    { label: 'ตะไคร้', match: ['ตะไคร้'] },
+    { label: 'พริก', match: ['พริก'] },
+    { label: 'ข่า', match: ['ข่า'] },
+    { label: 'หอมแดง', match: ['หอมแดง'] },
+    { label: 'หอมใหญ่', match: ['หอมใหญ่'] },
+    { label: 'กระเทียม', match: ['กระเทียม'] },
+    { label: 'ขิง', match: ['ขิง'] },
+    { label: 'ผักบุ้ง', match: ['ผักบุ้ง'] },
+    { label: 'คะน้า', match: ['คะน้า'] },
+    { label: 'ถั่วฝักยาว', match: ['ถั่วฝักยาว'] },
+    { label: 'มะเขือ', match: ['มะเขือ'] },
+    { label: 'แครอท', match: ['แครอท'] },
+  ]},
+  // เครื่องปรุง
+  { group: 'เครื่องปรุง', items: [
+    { label: 'น้ำปลา', match: ['น้ำปลา'] },
+    { label: 'น้ำมันหอย', match: ['น้ำมันหอย'] },
+    { label: 'ซีอิ๊วขาว', match: ['ซีอิ๊วขาว'] },
+    { label: 'ซีอิ๊วดำ', match: ['ซีอิ๊วดำ'] },
+    { label: 'พริกแกง', match: ['พริกแกง'] },
+    { label: 'กะทิ', match: ['กะทิ'] },
+    { label: 'น้ำตาลปี๊บ', match: ['น้ำตาลปี๊บ'] },
+    { label: 'มะนาว', match: ['มะนาว'] },
+  ]},
+  // เส้น/แป้ง
+  { group: 'เส้น/แป้ง', items: [
+    { label: 'เส้นใหญ่', match: ['เส้นใหญ่'] },
+    { label: 'เส้นเล็ก', match: ['เส้นเล็ก'] },
+    { label: 'บะหมี่', match: ['บะหมี่'] },
+    { label: 'วุ้นเส้น', match: ['วุ้นเส้น'] },
+    { label: 'ข้าวสวย', match: ['ข้าวสวย', 'ข้าว'] },
+    { label: 'แป้งข้าวเหนียว', match: ['แป้งข้าวเหนียว'] },
+  ]},
+];
+---
+<BaseLayout
+  title="วันนี้กินอะไรดี · เลือกวัตถุดิบที่มีในตู้เย็น"
+  description="เลือกวัตถุดิบที่มีในตู้เย็น แล้วดูว่าทำเมนูอะไรได้บ้าง ระบบจัดอันดับให้ตามความตรงของวัตถุดิบ"
+>
+  <section class="wt-hero">
+    <div class="container">
+      <h1>🥬 วัตถุดิบในตู้เย็น</h1>
+      <p>เลือกของที่มีในตู้ → ดูว่าทำเมนูอะไรได้</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="wt-layout">
+        <!-- Left: filter -->
+        <aside class="wt-filter">
+          <div class="filter-head">
+            <h2>เลือกวัตถุดิบ</h2>
+            <button id="clearAll" class="link-btn">ล้างทั้งหมด</button>
+          </div>
+          <div class="filter-status" id="filterStatus">เลือก 0 อย่าง</div>
+
+          {COMMON_INGREDIENTS.map((g) => (
+            <div class="filter-group">
+              <h3>{g.group}</h3>
+              <div class="filter-chips">
+                {g.items.map((item) => (
+                  <label class="chip">
+                    <input
+                      type="checkbox"
+                      class="ing-chk"
+                      data-label={item.label}
+                      data-match={JSON.stringify(item.match)}
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </aside>
+
+        <!-- Right: results -->
+        <div class="wt-results">
+          <div class="results-head">
+            <h2 id="resultsTitle">เมนูที่ทำได้ทั้งหมด</h2>
+          </div>
+          <div id="resultsList" class="grid"></div>
+          <div id="emptyResults" class="empty-results" hidden>
+            <h3>ไม่เจอเมนูที่ตรงกัน 🤔</h3>
+            <p>ลองเลือกวัตถุดิบน้อยลง หรือเปลี่ยนเป็นกลุ่มอื่น</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script is:inline define:vars={{ recipeIndex, base }}>
+    function escape(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    }
+    function formatTime(iso) {
+      const m = (iso || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+      if (!m) return iso;
+      const h = parseInt(m[1] || '0'), mi = parseInt(m[2] || '0');
+      if (h > 0 && mi > 0) return `${h} ชม. ${mi} นาที`;
+      if (h > 0) return `${h} ชั่วโมง`;
+      return `${mi} นาที`;
+    }
+
+    let selected = []; // { label, match[] }
+
+    function update() {
+      const list = document.getElementById('resultsList');
+      const empty = document.getElementById('emptyResults');
+      const title = document.getElementById('resultsTitle');
+      const status = document.getElementById('filterStatus');
+
+      status.textContent = selected.length === 0
+        ? 'เลือก 0 อย่าง'
+        : `เลือกแล้ว ${selected.length} อย่าง: ${selected.map(s => s.label).join(', ')}`;
+
+      let results;
+      if (selected.length === 0) {
+        // แสดงสุ่มบ้านๆ
+        results = recipeIndex.slice(0, 30).map(r => ({ r, match: 0 }));
+        title.textContent = `เมนูที่ทำได้ทั้งหมด (${recipeIndex.length} สูตร)`;
+        empty.hidden = true;
+      } else {
+        results = recipeIndex.map((r) => {
+          let matchCount = 0;
+          selected.forEach((sel) => {
+            const has = sel.match.some((kw) => r.ingredientsText.includes(kw.toLowerCase()));
+            if (has) matchCount++;
+          });
+          return { r, match: matchCount };
+        }).filter(x => x.match > 0);
+
+        // เรียงตาม % ตรง (มาก → น้อย), ตาม recipe ที่ ingredient น้อย (ทำง่ายกว่า)
+        results.sort((a, b) => {
+          const aPct = a.match / selected.length;
+          const bPct = b.match / selected.length;
+          if (bPct !== aPct) return bPct - aPct;
+          return a.r.ingredientCount - b.r.ingredientCount;
+        });
+
+        results = results.slice(0, 60);
+
+        if (results.length === 0) {
+          list.innerHTML = '';
+          empty.hidden = false;
+          title.textContent = 'ไม่เจอเมนู';
+          return;
+        }
+        empty.hidden = true;
+        title.textContent = `เมนูที่ตรง (${results.length} สูตร)`;
+      }
+
+      list.innerHTML = results.map(({ r, match }) => {
+        const pct = selected.length > 0 ? Math.round((match / selected.length) * 100) : 0;
+        const badge = selected.length > 0
+          ? `<span class="match-badge ${pct === 100 ? 'full' : ''}">${match}/${selected.length} ตรง</span>`
+          : '';
+        return `
+          <a class="card" href="${base}recipes/${r.slug}/">
+            <div class="card-image">
+              <img src="${escape(r.image)}" alt="${escape(r.title)}" loading="lazy" />
+              ${badge}
+            </div>
+            <div class="card-body">
+              <h3>${escape(r.title)}</h3>
+              <p>${escape(r.description)}</p>
+              <div class="meta">
+                <span>⏱️ ${formatTime(r.totalTime)}</span>
+                <span>🍽️ ${r.servings} ที่</span>
+              </div>
+            </div>
+          </a>
+        `;
+      }).join('');
+    }
+
+    document.querySelectorAll('.ing-chk').forEach((chk) => {
+      chk.addEventListener('change', () => {
+        const label = chk.dataset.label;
+        const match = JSON.parse(chk.dataset.match);
+        if (chk.checked) selected.push({ label, match });
+        else selected = selected.filter(s => s.label !== label);
+        update();
+      });
+    });
+
+    document.getElementById('clearAll').addEventListener('click', () => {
+      selected = [];
+      document.querySelectorAll('.ing-chk').forEach(c => { c.checked = false; });
+      update();
+    });
+
+    update();
+  </script>
+
+  <style>
+    .wt-hero {
+      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+      padding: 2.25rem 1.25rem 1.5rem;
+      text-align: center;
+    }
+    .wt-hero h1 {
+      font-size: 2rem;
+      color: var(--color-primary-dark);
+      margin-bottom: 0.4rem;
+    }
+    .wt-hero p { color: var(--color-muted); margin: 0; }
+
+    .wt-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 2rem;
+    }
+    @media (max-width: 900px) {
+      .wt-layout { grid-template-columns: 1fr; }
+    }
+
+    .wt-filter {
+      background: white;
+      padding: 1.25rem;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      align-self: start;
+      position: sticky;
+      top: 80px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+    @media (max-width: 900px) {
+      .wt-filter { position: static; max-height: none; }
+    }
+    .filter-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .filter-head h2 { margin: 0; font-size: 1.1rem; }
+    .filter-status {
+      font-size: 0.85rem;
+      color: var(--color-primary-dark);
+      background: #fff7ed;
+      padding: 0.4rem 0.75rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    .link-btn {
+      background: white;
+      border: 1px solid var(--color-border);
+      padding: 0.3rem 0.7rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: var(--font);
+    }
+    .link-btn:hover { border-color: var(--color-primary); }
+
+    .filter-group { margin-bottom: 1.25rem; }
+    .filter-group h3 {
+      font-size: 0.95rem;
+      color: var(--color-muted);
+      margin: 0 0 0.5rem;
+      font-weight: 600;
+    }
+    .filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .chip input { display: none; }
+    .chip:hover { border-color: var(--color-primary); }
+    .chip:has(input:checked) {
+      background: var(--color-primary);
+      color: white;
+      border-color: var(--color-primary);
+    }
+
+    .wt-results {
+      min-width: 0;
+    }
+    .results-head { margin-bottom: 1rem; }
+    .results-head h2 { margin: 0; font-size: 1.2rem; }
+
+    .match-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .match-badge.full {
+      background: #10b981;
+    }
+    .card-image { position: relative; }
+
+    .empty-results {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--color-muted);
+    }
+  </style>
+</BaseLayout>

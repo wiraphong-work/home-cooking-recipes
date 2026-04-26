@@ -1,0 +1,238 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const base = import.meta.env.BASE_URL;
+const allRecipes = await getCollection('recipes');
+
+// สร้าง index ที่ client search ได้
+const searchIndex = allRecipes.map((r) => ({
+  slug: r.slug,
+  title: r.data.title,
+  description: r.data.description,
+  image: r.data.image,
+  category: r.data.category,
+  totalTime: r.data.totalTime,
+  servings: r.data.servings,
+  // รวมวัตถุดิบเป็น string เพื่อค้น
+  ingredients: r.data.ingredients.map((i) => i.name).join(' '),
+}));
+---
+<BaseLayout
+  title="ค้นหาสูตรอาหาร · ครัวบ้านๆ"
+  description="ค้นหาสูตรอาหารไทยทำง่ายที่บ้าน ค้นด้วยชื่อเมนู วัตถุดิบ หรือหมวดหมู่"
+>
+  <section class="search-hero">
+    <div class="container">
+      <h1>🔍 ค้นหาสูตรอาหาร</h1>
+      <p>ค้นด้วยชื่อเมนู วัตถุดิบ หรือหมวดหมู่</p>
+
+      <div class="search-box">
+        <input
+          type="search"
+          id="searchInput"
+          placeholder="ลองพิมพ์ &quot;กะเพรา&quot; &quot;หมูสับ&quot; หรือ &quot;ของหวาน&quot;"
+          autocomplete="off"
+          autofocus
+        />
+      </div>
+
+      <div class="search-meta" id="searchMeta">
+        เริ่มพิมพ์เพื่อค้นหา · มีทั้งหมด {searchIndex.length} สูตรในเว็บ
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="grid" id="resultsGrid">
+        <!-- placeholder จะถูก populate ด้วย JS -->
+      </div>
+      <div class="empty-state" id="emptyState" hidden>
+        <h2>ไม่พบสูตรที่ค้น 🥲</h2>
+        <p>ลองค้นด้วยคำอื่น เช่น "ผัด" "ต้มยำ" "หมู" "ของหวาน"</p>
+      </div>
+    </div>
+  </section>
+
+  <script is:inline define:vars={{ searchIndex, base }}>
+    const input = document.getElementById('searchInput');
+    const grid = document.getElementById('resultsGrid');
+    const meta = document.getElementById('searchMeta');
+    const emptyState = document.getElementById('emptyState');
+
+    function formatTime(iso) {
+      const m = (iso || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+      if (!m) return iso;
+      const h = parseInt(m[1] || '0');
+      const min = parseInt(m[2] || '0');
+      if (h > 0 && min > 0) return `${h} ชม. ${min} นาที`;
+      if (h > 0) return `${h} ชั่วโมง`;
+      return `${min} นาที`;
+    }
+
+    function escape(s) {
+      return String(s).replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c])
+      );
+    }
+
+    function highlight(text, q) {
+      if (!q) return escape(text);
+      const safe = escape(text);
+      const safeQ = escape(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`(${safeQ})`, 'gi');
+      return safe.replace(re, '<mark>$1</mark>');
+    }
+
+    function score(recipe, query) {
+      const q = query.toLowerCase();
+      let s = 0;
+      if (recipe.title.toLowerCase().includes(q)) s += 10;
+      if (recipe.title.toLowerCase().startsWith(q)) s += 5;
+      if (recipe.category.toLowerCase().includes(q)) s += 6;
+      if (recipe.description.toLowerCase().includes(q)) s += 3;
+      if (recipe.ingredients.toLowerCase().includes(q)) s += 2;
+      return s;
+    }
+
+    function renderResults(query) {
+      query = query.trim();
+      if (query.length === 0) {
+        grid.innerHTML = '';
+        emptyState.hidden = true;
+        meta.textContent = `เริ่มพิมพ์เพื่อค้นหา · มีทั้งหมด ${searchIndex.length} สูตรในเว็บ`;
+        return;
+      }
+
+      const matches = searchIndex
+        .map((r) => ({ r, s: score(r, query) }))
+        .filter((x) => x.s > 0)
+        .sort((a, b) => b.s - a.s);
+
+      if (matches.length === 0) {
+        grid.innerHTML = '';
+        emptyState.hidden = false;
+        meta.textContent = `ไม่พบ "${query}"`;
+        return;
+      }
+
+      emptyState.hidden = true;
+      meta.innerHTML = `พบ <strong>${matches.length}</strong> สูตรสำหรับ "${escape(query)}"`;
+
+      grid.innerHTML = matches
+        .map(({ r }) => `
+          <a class="card" href="${base}recipes/${r.slug}/">
+            <div class="card-image">
+              <img src="${escape(r.image)}" alt="${escape(r.title)}" loading="lazy" />
+            </div>
+            <div class="card-body">
+              <h3>${highlight(r.title, query)}</h3>
+              <p>${highlight(r.description, query)}</p>
+              <div class="meta">
+                <span>⏱️ ${formatTime(r.totalTime)}</span>
+                <span>🍽️ ${r.servings} ที่</span>
+                <span class="cat">${escape(r.category)}</span>
+              </div>
+            </div>
+          </a>
+        `)
+        .join('');
+    }
+
+    // Debounce input — ค้นหลังหยุดพิมพ์ 150ms
+    let timer;
+    input.addEventListener('input', (e) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => renderResults(e.target.value), 150);
+    });
+
+    // Pre-fill จาก URL ?q=...
+    const params = new URLSearchParams(location.search);
+    const initialQuery = params.get('q') || '';
+    if (initialQuery) {
+      input.value = initialQuery;
+      renderResults(initialQuery);
+    }
+
+    // Update URL ตามการพิมพ์ (ไม่ reload)
+    input.addEventListener('input', (e) => {
+      const q = e.target.value.trim();
+      const url = new URL(location.href);
+      if (q) url.searchParams.set('q', q);
+      else url.searchParams.delete('q');
+      history.replaceState({}, '', url.toString());
+    });
+  </script>
+
+  <style>
+    .search-hero {
+      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+      padding: 2.5rem 1.25rem 2rem;
+      text-align: center;
+    }
+    .search-hero h1 {
+      font-size: 2.25rem;
+      color: var(--color-primary-dark);
+      margin-bottom: 0.5rem;
+    }
+    .search-hero p {
+      color: var(--color-muted);
+      margin-bottom: 1.5rem;
+    }
+    .search-box {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 0.95rem 1.25rem;
+      border: 2px solid var(--color-border);
+      border-radius: 999px;
+      font-family: var(--font);
+      font-size: 1.05rem;
+      background: white;
+      box-shadow: 0 4px 16px rgba(234, 88, 12, 0.08);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 4px 16px rgba(234, 88, 12, 0.18);
+    }
+    .search-meta {
+      margin-top: 1rem;
+      color: var(--color-muted);
+      font-size: 0.95rem;
+    }
+    .search-meta strong { color: var(--color-primary-dark); }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--color-muted);
+    }
+    .empty-state h2 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+
+    mark {
+      background: #fef3c7;
+      color: var(--color-primary-dark);
+      padding: 0 0.15rem;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .meta .cat {
+      background: #fff7ed;
+      color: var(--color-primary-dark);
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+    }
+
+    @media (max-width: 640px) {
+      .search-hero h1 { font-size: 1.75rem; }
+      .search-box input { font-size: 1rem; padding: 0.85rem 1.1rem; }
+    }
+  </style>
+</BaseLayout>

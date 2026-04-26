@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import RecipeCard from '../components/RecipeCard.astro';
+import Pagination from '../components/Pagination.astro';
 import { getCollection } from 'astro:content';
 import { pickRecipeOfTheDay } from '../utils/meal';
 
@@ -11,6 +12,11 @@ const allRecipes = await getCollection('recipes');
 const sortedRecipes = allRecipes.sort((a, b) =>
   b.data.publishDate.valueOf() - a.data.publishDate.valueOf()
 );
+
+// Pagination — 30 สูตรต่อหน้า
+const PAGE_SIZE = 30;
+const totalPages = Math.max(1, Math.ceil(sortedRecipes.length / PAGE_SIZE));
+const firstPageRecipes = sortedRecipes.slice(0, PAGE_SIZE);
 
 // เลือกเมนูประจำวัน (deterministic ตามวันที่)
 const recipeOfTheDay = pickRecipeOfTheDay(sortedRecipes);
@@ -74,9 +80,12 @@ function formatTime(isoDuration: string): string {
 
   <section class="section" id="recipes">
     <div class="container">
-      <h2>สูตรแนะนำล่าสุด</h2>
+      <div class="section-head">
+        <h2>สูตรแนะนำล่าสุด</h2>
+        <span class="section-count">รวม {sortedRecipes.length} สูตร</span>
+      </div>
       <div class="grid">
-        {sortedRecipes.map((recipe) => (
+        {firstPageRecipes.map((recipe) => (
           <RecipeCard
             href={`${base}recipes/${recipe.slug}/`}
             title={recipe.data.title}
@@ -87,6 +96,8 @@ function formatTime(isoDuration: string): string {
           />
         ))}
       </div>
+
+      <Pagination currentPage={1} totalPages={totalPages} />
     </div>
   </section>
 
@@ -200,6 +211,21 @@ function formatTime(isoDuration: string): string {
       .daily-img { aspect-ratio: 16 / 10; }
       .daily-body { padding: 1.1rem 1.25rem 1.25rem; }
       .daily-body h2 { font-size: 1.25rem; }
+    }
+
+    /* Section header — title + count */
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .section-head h2 { margin: 0; }
+    .section-count {
+      color: var(--color-muted);
+      font-size: 0.95rem;
     }
   </style>
 </BaseLayout>

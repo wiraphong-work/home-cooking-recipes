@@ -1,5 +1,4 @@
 ---
-// Header navigation
 const base = import.meta.env.BASE_URL;
 ---
 <header class="site-header">
@@ -7,12 +6,62 @@ const base = import.meta.env.BASE_URL;
     <a href={base} class="logo">ครัวบ้านๆ 🍜</a>
     <nav class="nav">
       <a href={base}>หน้าแรก</a>
-      <a href={`${base}#recipes`}>สูตรอาหาร</a>
+      <a href={`${base}category/`}>หมวดหมู่</a>
+      <a href={`${base}seasonal/`} class="hide-md">📅 ฤดูกาล</a>
+      <a href={`${base}what-to-cook/`} class="hide-md">🥬 มีอะไรในตู้</a>
+      <a href={`${base}search/`} aria-label="ค้นหาสูตร">🔍 <span class="hide-sm">ค้นหา</span></a>
       <a href={`${base}random/`} class="nav-random">🎲 สุ่มเมนู</a>
-      <a href={`${base}about/`}>เกี่ยวกับเรา</a>
+      <a href={`${base}favorites/`} class="nav-fav" aria-label="สูตรที่บันทึก">
+        ❤️ <span class="fav-count" id="favCount" hidden>0</span>
+      </a>
+      <a href={`${base}shopping-list/`} class="nav-cart" aria-label="รายการซื้อ">
+        🛒 <span class="cart-count" id="cartCount" hidden>0</span>
+      </a>
     </nav>
   </div>
+
+  <!-- Drawer สำหรับ mobile (จะเปิด bonus features ที่ซ่อนใน desktop) -->
+  <div class="mobile-extra">
+    <a href={`${base}seasonal/`}>📅 ฤดูกาล</a>
+    <a href={`${base}what-to-cook/`}>🥬 มีอะไรในตู้</a>
+    <a href={`${base}about/`}>เกี่ยวกับ</a>
+  </div>
 </header>
+
+<script src={`${base}shopping-list.js`} is:inline></script>
+<script src={`${base}favorites.js`} is:inline></script>
+<script is:inline>
+  function updateCounts() {
+    if (window.ShoppingList) {
+      const c = window.ShoppingList.count();
+      const el = document.getElementById('cartCount');
+      if (el) {
+        if (c > 0) { el.textContent = c; el.hidden = false; }
+        else el.hidden = true;
+      }
+    }
+    if (window.Favorites) {
+      const c = window.Favorites.count();
+      const el = document.getElementById('favCount');
+      if (el) {
+        if (c > 0) { el.textContent = c; el.hidden = false; }
+        else el.hidden = true;
+      }
+    }
+  }
+  function ready() {
+    if (window.ShoppingList && window.Favorites) {
+      updateCounts();
+      return true;
+    }
+    return false;
+  }
+  if (!ready()) {
+    const wait = setInterval(() => { if (ready()) clearInterval(wait); }, 50);
+  }
+  window.addEventListener('shopping-list-changed', updateCounts);
+  window.addEventListener('favorites-changed', updateCounts);
+</script>
 
 <style>
   .nav-random {
@@ -28,10 +77,59 @@ const base = import.meta.env.BASE_URL;
     box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
     text-decoration: none;
   }
-  @media (max-width: 640px) {
-    .nav-random {
-      padding: 0.3rem 0.7rem;
-      font-size: 0.88rem;
-    }
+
+  .nav-fav, .nav-cart {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    position: relative;
+  }
+
+  .cart-count {
+    background: #ef4444;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    min-width: 18px;
+    text-align: center;
+  }
+  .fav-count {
+    background: #ec4899;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  .mobile-extra {
+    display: none;
+    border-top: 1px solid var(--color-border);
+    padding: 0.5rem 1rem;
+    gap: 1rem;
+    overflow-x: auto;
+    background: white;
+  }
+  .mobile-extra a {
+    color: var(--color-text);
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    .hide-md { display: none; }
+    .mobile-extra { display: flex; }
+  }
+  @media (max-width: 720px) {
+    .hide-sm { display: none; }
+    .nav { gap: 0.85rem; }
+    .nav-random { padding: 0.3rem 0.7rem; font-size: 0.88rem; }
+  }
+  @media (max-width: 380px) {
+    .nav { gap: 0.5rem; font-size: 0.85rem; }
   }
 </style>

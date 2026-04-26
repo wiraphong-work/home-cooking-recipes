@@ -1,0 +1,86 @@
+---
+import { getCollection, type CollectionEntry } from 'astro:content';
+import RecipeCard from './RecipeCard.astro';
+import { getMeals } from '../utils/meal';
+
+interface Props {
+  current: CollectionEntry<'recipes'>;
+  count?: number;
+}
+
+const { current, count = 4 } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const all = await getCollection('recipes');
+
+// Score: same category +5, same meal +2, same protein keyword +1
+function tokens(t: string) {
+  return new Set(t.replace(/[^ก-๙a-zA-Z]/g, ' ').split(/\s+/).filter(Boolean));
+}
+const currentTokens = tokens(current.data.title + ' ' + current.data.description);
+const currentMeals = new Set(getMeals(current.data));
+
+const scored = all
+  .filter((r) => r.slug !== current.slug)
+  .map((r) => {
+    let s = 0;
+    if (r.data.category === current.data.category) s += 5;
+    const meals = getMeals(r.data);
+    if (meals.some((m) => currentMeals.has(m))) s += 2;
+    const t = tokens(r.data.title);
+    let common = 0;
+    t.forEach((x) => { if (currentTokens.has(x)) common++; });
+    s += common;
+    return { r, s };
+  })
+  .sort((a, b) => b.s - a.s);
+
+const related = scored.slice(0, count).map(({ r }) => r);
+
+function formatTime(iso: string): string {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+  if (!m) return iso;
+  const h = parseInt(m[1] || '0');
+  const min = parseInt(m[2] || '0');
+  if (h > 0 && min > 0) return `${h} ชม. ${min} นาที`;
+  if (h > 0) return `${h} ชั่วโมง`;
+  return `${min} นาที`;
+}
+---
+
+{related.length > 0 && (
+  <section class="related-section">
+    <h2>🍽️ สูตรอื่นที่น่าสนใจ</h2>
+    <div class="related-grid">
+      {related.map((r) => (
+        <RecipeCard
+          href={`${base}recipes/${r.slug}/`}
+          title={r.data.title}
+          description={r.data.description}
+          image={r.data.image}
+          cookTime={formatTime(r.data.totalTime)}
+          servings={r.data.servings}
+        />
+      ))}
+    </div>
+  </section>
+)}
+
+<style>
+  .related-section {
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .related-section h2 {
+    margin-bottom: 1.25rem;
+    font-size: 1.5rem;
+  }
+  .related-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 1.25rem;
+  }
+  @media (max-width: 640px) {
+    .related-section h2 { font-size: 1.25rem; }
+  }
+</style>

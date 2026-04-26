@@ -6,13 +6,16 @@ interface Props {
   image: string;
   cookTime?: string;
   servings?: number;
+  slug?: string;
 }
 
-const { href, title, description, image, cookTime, servings } = Astro.props;
+const { href, title, description, image, cookTime, servings, slug } = Astro.props;
+// auto-extract slug from href ถ้าไม่ส่งเข้ามา
+const recipeSlug = slug || (href.match(/recipes\/([^\/]+)/)?.[1] ?? '');
 ---
 <a href={href} class="card">
   <div class="card-image">
-    <img src={image} alt={title} loading="lazy" />
+    <img src={image} alt={title} loading="lazy" data-recipe-slug={recipeSlug} />
   </div>
   <div class="card-body">
     <h3>{title}</h3>

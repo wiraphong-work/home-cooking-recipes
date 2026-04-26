@@ -54,6 +54,10 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site).toString();
   {jsonLd && (
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   )}
+
+  <!-- Image overrides + smart category fallback -->
+  <script src={`${import.meta.env.BASE_URL}image-overrides.js`} is:inline></script>
+  <script src={`${import.meta.env.BASE_URL}image-fallback.js`} is:inline></script>
 </head>
 <body>
   <Header />

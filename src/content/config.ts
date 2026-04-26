@@ -27,6 +27,14 @@ const recipes = defineCollection({
       note: z.string().optional(),
     })).optional(),
     tips: z.string().optional(),
+    nutrition: z.object({
+      calories: z.number().optional(),       // kcal ต่อ 1 ที่
+      protein: z.number().optional(),         // กรัม
+      carbs: z.number().optional(),           // กรัม
+      fat: z.number().optional(),             // กรัม
+      sodium: z.number().optional(),          // มก.
+      fiber: z.number().optional(),           // กรัม
+    }).optional(),
   }),
 });
 

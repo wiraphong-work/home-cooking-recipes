@@ -1,0 +1,149 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import { CATEGORY_INFO, categoryToSlug } from '../../utils/category';
+
+const base = import.meta.env.BASE_URL;
+const allRecipes = await getCollection('recipes');
+
+// นับจำนวนสูตรต่อ category + เก็บรูปตัวอย่าง 1 รูป
+const counts: Record<string, { count: number; sampleImage: string }> = {};
+for (const r of allRecipes) {
+  const cat = r.data.category;
+  if (!counts[cat]) counts[cat] = { count: 0, sampleImage: r.data.image };
+  counts[cat].count++;
+}
+
+const categories = Object.entries(counts)
+  .map(([category, data]) => ({
+    category,
+    count: data.count,
+    sampleImage: data.sampleImage,
+    slug: categoryToSlug(category),
+    info: CATEGORY_INFO[category] || { emoji: '🍽️', description: '' },
+  }))
+  .sort((a, b) => b.count - a.count);
+---
+<BaseLayout
+  title="หมวดหมู่สูตรอาหาร · ครัวบ้านๆ"
+  description="เลือกดูสูตรอาหารตามหมวดหมู่ ทั้งอาหารจานเดียว แกง ยำ ขนมหวาน ของว่าง"
+>
+  <section class="cat-hero">
+    <div class="container">
+      <h1>📚 หมวดหมู่สูตรอาหาร</h1>
+      <p>{categories.length} หมวดหมู่ · {allRecipes.length} สูตรทั้งหมด</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="cat-grid">
+        {categories.map((c) => (
+          <a href={`${base}category/${c.slug}/`} class="cat-card">
+            <div class="cat-thumb">
+              <img src={c.sampleImage} alt={c.category} loading="lazy" />
+              <div class="cat-overlay">
+                <span class="cat-emoji">{c.info.emoji}</span>
+              </div>
+            </div>
+            <div class="cat-body">
+              <h2>{c.category}</h2>
+              <p>{c.info.description}</p>
+              <span class="cat-count">{c.count} สูตร →</span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <style>
+    .cat-hero {
+      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+      padding: 2.5rem 1.25rem 1.5rem;
+      text-align: center;
+    }
+    .cat-hero h1 {
+      font-size: 2.25rem;
+      color: var(--color-primary-dark);
+      margin-bottom: 0.4rem;
+    }
+    .cat-hero p {
+      color: var(--color-muted);
+      margin: 0;
+    }
+
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+      gap: 1.5rem;
+    }
+    .cat-card {
+      background: var(--color-card);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s, box-shadow 0.2s;
+      color: inherit;
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+    }
+    .cat-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      text-decoration: none;
+    }
+    .cat-thumb {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+      background: #fee2c8;
+    }
+    .cat-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .cat-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.45) 100%);
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 0.75rem;
+    }
+    .cat-emoji {
+      font-size: 2rem;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+    }
+    .cat-body {
+      padding: 1.1rem 1.2rem 1.25rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .cat-body h2 {
+      margin: 0 0 0.4rem;
+      font-size: 1.2rem;
+      color: var(--color-text);
+    }
+    .cat-body p {
+      color: var(--color-muted);
+      font-size: 0.9rem;
+      flex: 1;
+      margin-bottom: 0.5rem;
+    }
+    .cat-count {
+      color: var(--color-primary-dark);
+      font-weight: 700;
+      margin-top: auto;
+    }
+
+    @media (max-width: 640px) {
+      .cat-hero h1 { font-size: 1.75rem; }
+      .cat-grid { gap: 1rem; }
+    }
+  </style>
+</BaseLayout>
